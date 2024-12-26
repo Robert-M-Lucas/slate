@@ -1,29 +1,44 @@
 #![no_std]
 #![no_main]
+#![feature(custom_test_frameworks)]
+#![test_runner(slate::test_runner)]
+#![reexport_test_harness_main = "test_main"]
 
-mod vga_buffer;
-
-use core::fmt::Write;
-use core::hint::black_box;
 use core::panic::PanicInfo;
-
-#[panic_handler]
-fn panic(_info: &PanicInfo) -> ! {
-    loop {}
-}
-
-static HELLO: &[u8] = b"Hello World!";
+use slate::other::arbitrary_delay;
+use slate::{exit_qemu, hlt_loop, println, QemuExitCode};
 
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
-    println!("Hello, world!");
+    slate::init();
 
-    for x in 0..10_000_000 {
-        black_box(x);
-    }
 
-    println!("After delay");
+    #[cfg(test)]
+    test_main();
 
-    loop {}
+    main();
+
+    hlt_loop();
 }
 
+fn main() {
+    println!("Hello World{}", "!");
+
+    arbitrary_delay();
+
+    println!("{}", include_str!("long_text.txt"));
+}
+
+/// This function is called on panic.
+#[cfg(not(test))]
+#[panic_handler]
+fn panic(info: &PanicInfo) -> ! {
+    println!("{}", info);
+    hlt_loop();
+}
+
+#[cfg(test)]
+#[panic_handler]
+fn panic(info: &PanicInfo) -> ! {
+    slate::test_panic_handler(info)
+}
