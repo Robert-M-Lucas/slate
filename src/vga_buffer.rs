@@ -1,3 +1,4 @@
+use core::cmp::min;
 use core::fmt;
 use lazy_static::lazy_static;
 use spin::Mutex;
@@ -54,10 +55,45 @@ struct Buffer {
 pub struct Writer {
     pub column_position: usize,
     color_code: ColorCode,
+    blink_color_code: ColorCode,
+    is_blink: bool,
     buffer: &'static mut Buffer,
 }
 
 impl Writer {
+    pub fn new(
+        color_code: ColorCode,
+        blink_color_code: ColorCode,
+        buffer: &'static mut Buffer
+    ) -> Writer {
+        Writer {
+            column_position: 0,
+            color_code,
+            blink_color_code,
+            is_blink: false,
+            buffer,
+        }
+    }
+
+    pub fn w_blink(&mut self) {
+        self.is_blink = !self.is_blink;
+        let column_position = min(self.column_position, BUFFER_WIDTH - 1);
+        let mut current = self.buffer.chars[BUFFER_HEIGHT - 1][column_position].read();
+        if self.is_blink {
+            current.color_code = self.blink_color_code;
+        }
+        else {
+            current.color_code = self.color_code;
+        }
+        self.buffer.chars[BUFFER_HEIGHT - 1][column_position].write(current);
+    }
+
+    pub fn remove_blink(&mut self) {
+        if self.is_blink {
+            self.w_blink();
+        }
+    }
+
     pub fn write_byte(&mut self, byte: u8) {
         match byte {
             b'\n' => self.new_line(),
@@ -92,6 +128,7 @@ impl Writer {
     }
 
     fn new_line(&mut self) {
+        self.remove_blink();
         for row in 1..BUFFER_HEIGHT {
             for col in 0..BUFFER_WIDTH {
                 let character = self.buffer.chars[row][col].read();
@@ -114,11 +151,13 @@ impl Writer {
 }
 
 lazy_static! {
-    pub static ref WRITER: Mutex<Writer> = Mutex::new(Writer {
-        column_position: 0,
-        color_code: ColorCode::new(Color::Yellow, Color::Black),
-        buffer: unsafe { &mut *(0xb8000 as *mut Buffer) },
-    });
+    pub static ref WRITER: Mutex<Writer> = Mutex::new(
+        Writer::new(ColorCode::new(Color::Yellow, Color::Black), ColorCode::new(Color::Yellow, Color::White), unsafe { &mut *(0xb8000 as *mut Buffer) })
+    );
+}
+
+pub fn blink() {
+    WRITER.lock().w_blink();
 }
 
 impl fmt::Write for Writer {

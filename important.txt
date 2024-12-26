@@ -1,0 +1,3 @@
+Initial page table set up by bootloader
+
+It is important to remember to flush the TLB on each page table modification because otherwise, the CPU might keep using the old translation, which can lead to non-deterministic bugs that are very hard to debug.
