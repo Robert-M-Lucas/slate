@@ -1,5 +1,6 @@
-use core::cmp::min;
+use core::cmp::{max, min};
 use core::fmt;
+use core::num::NonZero;
 use lazy_static::lazy_static;
 use spin::Mutex;
 use volatile::{Volatile};
@@ -56,7 +57,9 @@ pub struct Writer {
     pub column_position: usize,
     color_code: ColorCode,
     blink_color_code: ColorCode,
+    blink_counter: u8,
     is_blink: bool,
+    blink_frequency: NonZero<u8>,
     buffer: &'static mut Buffer,
 }
 
@@ -64,34 +67,44 @@ impl Writer {
     pub fn new(
         color_code: ColorCode,
         blink_color_code: ColorCode,
-        buffer: &'static mut Buffer
+        blink_frequency: u8,
+        buffer: &'static mut Buffer,
     ) -> Writer {
         Writer {
             column_position: 0,
             color_code,
             blink_color_code,
-            is_blink: false,
+            blink_counter: 0,
+            is_blink: true,
+            blink_frequency: NonZero::new(blink_frequency).unwrap_or(NonZero::new(1).unwrap()),
             buffer,
         }
     }
 
     pub fn w_blink(&mut self) {
-        self.is_blink = !self.is_blink;
-        let column_position = min(self.column_position, BUFFER_WIDTH - 1);
-        let mut current = self.buffer.chars[BUFFER_HEIGHT - 1][column_position].read();
-        if self.is_blink {
-            current.color_code = self.blink_color_code;
+        self.blink_counter = self.blink_counter.wrapping_add(1);
+        if self.blink_counter >= self.blink_frequency.get() - 1 {
+            self.blink_counter = 0;
+            self.is_blink = !self.is_blink;
+
+            let column_position = min(self.column_position, BUFFER_WIDTH - 1);
+            let mut current = self.buffer.chars[BUFFER_HEIGHT - 1][column_position].read();
+            if self.is_blink {
+                current.color_code = self.color_code;
+            }
+            else {
+                current.color_code = self.blink_color_code;
+            }
+            self.buffer.chars[BUFFER_HEIGHT - 1][column_position].write(current);
         }
-        else {
-            current.color_code = self.color_code;
-        }
-        self.buffer.chars[BUFFER_HEIGHT - 1][column_position].write(current);
     }
 
+
     pub fn remove_blink(&mut self) {
-        if self.is_blink {
-            self.w_blink();
-        }
+        let column_position = min(self.column_position, BUFFER_WIDTH - 1);
+        let mut current = self.buffer.chars[BUFFER_HEIGHT - 1][column_position].read();
+        current.color_code = self.color_code;
+        self.buffer.chars[BUFFER_HEIGHT - 1][column_position].write(current);
     }
 
     pub fn write_byte(&mut self, byte: u8) {
@@ -152,7 +165,7 @@ impl Writer {
 
 lazy_static! {
     pub static ref WRITER: Mutex<Writer> = Mutex::new(
-        Writer::new(ColorCode::new(Color::Yellow, Color::Black), ColorCode::new(Color::Yellow, Color::White), unsafe { &mut *(0xb8000 as *mut Buffer) })
+        Writer::new(ColorCode::new(Color::Yellow, Color::Black), ColorCode::new(Color::Yellow, Color::White), 7, unsafe { &mut *(0xb8000 as *mut Buffer) })
     );
 }
 
