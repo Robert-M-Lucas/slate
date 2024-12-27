@@ -4,12 +4,17 @@
 #![test_runner(slate::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
+mod sudoku_test;
+
+use core::hint::black_box;
 use core::panic::PanicInfo;
 use bootloader::{entry_point, BootInfo};
 use x86_64::VirtAddr;
 use slate::other::arbitrary_delay;
 use slate::{exit_qemu, hlt_loop, println, QemuExitCode};
 use slate::memory::active_level_4_table;
+use crate::sudoku_test::solution::Solution;
+use crate::sudoku_test::solver::solve_backtracking;
 
 entry_point!(kernel_main);
 
@@ -51,9 +56,30 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
 fn main() {
     println!("Hello World{}", "!");
 
-    arbitrary_delay();
+    println!("Loading sudoku");
 
-    println!("{}", include_str!("long_text.txt"));
+    let problem = Solution::load_string(include_str!("sudoku.txt"));
+
+    println!("Loaded");
+    println!("{}", problem);
+
+    println!("Solving");
+    let solution = solve_backtracking(problem.clone());
+    if let Some(solution) = solution {
+        println!("{}", solution);
+    }
+    else {
+        println!("No solution found");
+    }
+
+    println!("Solving 1000");
+    for _ in 0..1000 {
+        let solution = solve_backtracking(problem.clone());
+        black_box(solution);
+    }
+
+
+    println!("Done");
 }
 
 /// This function is called on panic.

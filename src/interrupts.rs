@@ -90,7 +90,7 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(
                         hlt_loop();
                     }
 
-                    print!(" [{:?}] ", key)
+                    // print!(" [{:?}] ", key)
                 },
             }
         }
