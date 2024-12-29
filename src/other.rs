@@ -6,4 +6,3 @@ pub fn arbitrary_delay() {
         black_box(x);
     }
 }
-

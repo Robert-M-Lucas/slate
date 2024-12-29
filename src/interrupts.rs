@@ -1,10 +1,10 @@
-use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode};
 use crate::{exit_qemu, gdt, hlt_loop, print, println, QemuExitCode};
+use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode};
 
+use crate::vga_buffer::blink;
 use lazy_static::lazy_static;
 use pc_keyboard::KeyCode;
 use pic8259::ChainedPics;
-use crate::vga_buffer::blink;
 
 pub const PIC_1_OFFSET: u8 = 32;
 pub const PIC_2_OFFSET: u8 = PIC_1_OFFSET + 8;
@@ -16,7 +16,7 @@ pub static PICS: spin::Mutex<ChainedPics> =
 #[repr(u8)]
 pub enum InterruptIndex {
     Timer = PIC_1_OFFSET,
-    Keyboard
+    Keyboard,
 }
 
 impl InterruptIndex {
@@ -48,10 +48,7 @@ lazy_static! {
     };
 }
 
-
-extern "x86-interrupt" fn timer_interrupt_handler(
-    _stack_frame: InterruptStackFrame)
-{
+extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFrame) {
     // print!(".");
     blink();
 
@@ -61,18 +58,18 @@ extern "x86-interrupt" fn timer_interrupt_handler(
     }
 }
 
-extern "x86-interrupt" fn keyboard_interrupt_handler(
-    _stack_frame: InterruptStackFrame)
-{
+extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: InterruptStackFrame) {
     use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1};
     use spin::Mutex;
     use x86_64::instructions::port::Port;
 
     lazy_static! {
         static ref KEYBOARD: Mutex<Keyboard<layouts::Us104Key, ScancodeSet1>> =
-            Mutex::new(Keyboard::new(ScancodeSet1::new(),
-                layouts::Us104Key, HandleControl::Ignore)
-            );
+            Mutex::new(Keyboard::new(
+                ScancodeSet1::new(),
+                layouts::Us104Key,
+                HandleControl::Ignore
+            ));
     }
 
     let mut keyboard = KEYBOARD.lock();
@@ -87,11 +84,12 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(
                     if key == KeyCode::F4 && keyboard.get_modifiers().lalt {
                         println!("Exiting Qemu due to Alt+F4");
                         exit_qemu(QemuExitCode::Success);
-                        hlt_loop();
+                        // TODO: Why does having hlt_loop not work?
+                        // hlt_loop();
                     }
 
                     // print!(" [{:?}] ", key)
-                },
+                }
             }
         }
     }
@@ -106,16 +104,13 @@ pub fn init_idt() {
     IDT.load();
 }
 
-extern "x86-interrupt" fn breakpoint_handler(
-    stack_frame: InterruptStackFrame)
-{
+extern "x86-interrupt" fn breakpoint_handler(stack_frame: InterruptStackFrame) {
     println!("EXCEPTION: BREAKPOINT\n{:#?}", stack_frame);
 }
 
 extern "x86-interrupt" fn page_fault_handler(
     stack_frame: InterruptStackFrame,
-    error_code:
-    PageFaultErrorCode,
+    error_code: PageFaultErrorCode,
 ) {
     use x86_64::registers::control::Cr2;
 
@@ -127,8 +122,9 @@ extern "x86-interrupt" fn page_fault_handler(
 }
 
 extern "x86-interrupt" fn double_fault_handler(
-    stack_frame: InterruptStackFrame, _error_code: u64) -> !
-{
+    stack_frame: InterruptStackFrame,
+    _error_code: u64,
+) -> ! {
     panic!("EXCEPTION: DOUBLE FAULT\n{:#?}", stack_frame);
 }
 #[test_case]

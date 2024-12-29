@@ -1,6 +1,6 @@
+use crate::sudoku_test::solution::Solution;
 use core::fmt::{Debug, Display, Formatter};
 use itertools::iproduct;
-use crate::sudoku_test::solution::Solution;
 
 // How many bits are set high
 const BITCOUNT_LOOKUP: [u8; 512] = [

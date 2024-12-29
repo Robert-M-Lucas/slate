@@ -1,12 +1,11 @@
-use core::fmt::{Display, Formatter};
 use crate::sudoku_test::board::Possibilities;
+use core::fmt::{Display, Formatter};
 
 #[derive(Clone)]
 pub struct Solution {
     inner: [[u8; 9]; 9],
     remaining: u8,
 }
-
 
 impl Solution {
     // pub fn load<P: AsRef<Path>>(path: P) -> Self {
@@ -56,7 +55,9 @@ impl Solution {
         for y in 0..9 {
             for x in 0..9 {
                 let cell = self.inner[y][x];
-                if cell == 9 { continue; }
+                if cell == 9 {
+                    continue;
+                }
                 if !possibilites.get(x, y).has(cell) {
                     return false;
                 }

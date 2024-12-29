@@ -1,7 +1,7 @@
-use arrayvec::ArrayVec;
-use itertools::iproduct;
 use crate::sudoku_test::board::Possibilities;
 use crate::sudoku_test::solution::Solution;
+use arrayvec::ArrayVec;
+use itertools::iproduct;
 
 pub fn solve_backtracking(mut solution: Solution) -> Option<Solution> {
     // Dumb thing due to possible invalid inputs
