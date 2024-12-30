@@ -1,7 +1,7 @@
 use crate::{exit_qemu, gdt, hlt_loop, print, println, QemuExitCode};
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode};
 
-use crate::vga_buffer::blink;
+use crate::vga_buffer::{blink, scroll_down, scroll_up, WRITER};
 use lazy_static::lazy_static;
 use pc_keyboard::KeyCode;
 use pic8259::ChainedPics;
@@ -86,6 +86,12 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: InterruptStac
                         exit_qemu(QemuExitCode::Success);
                         // TODO: Why does having hlt_loop not work?
                         // hlt_loop();
+                    }
+                    else if key == KeyCode::PageUp {
+                        scroll_up()
+                    }
+                    else if key == KeyCode::PageDown {
+                        scroll_down()
                     }
 
                     // print!(" [{:?}] ", key)

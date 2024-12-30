@@ -6,3 +6,10 @@ pub fn arbitrary_delay() {
         black_box(x);
     }
 }
+
+#[deprecated]
+pub fn arbitrary_short_delay() {
+    for x in 0..500_000 {
+        black_box(x);
+    }
+}

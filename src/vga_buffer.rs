@@ -1,10 +1,12 @@
 use core::cmp::{max, min};
-use core::fmt;
+use core::{array, fmt};
+use core::fmt::Write;
 use core::num::NonZero;
 use lazy_static::lazy_static;
 use spin::Mutex;
 use volatile::Volatile;
 use x86_64::instructions::interrupts;
+use crate::vga_buffer::Color::{Black, Red, Yellow};
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -33,7 +35,7 @@ pub enum Color {
 struct ColorCode(u8);
 
 impl ColorCode {
-    fn new(foreground: Color, background: Color) -> ColorCode {
+    const fn new(foreground: Color, background: Color) -> ColorCode {
         ColorCode((background as u8) << 4 | (foreground as u8))
     }
 }
@@ -45,8 +47,14 @@ struct ScreenChar {
     color_code: ColorCode,
 }
 
+impl ScreenChar {
+    pub const EMPTY: ScreenChar = ScreenChar { ascii_character: 0, color_code: ColorCode::new(Black, Black) };
+}
+
 const BUFFER_HEIGHT: usize = 25;
 const BUFFER_WIDTH: usize = 80;
+
+const HISTORY_LINES: usize = 3;
 
 #[repr(transparent)]
 struct Buffer {
@@ -61,6 +69,11 @@ pub struct Writer {
     is_blink: bool,
     blink_frequency: NonZero<u8>,
     buffer: &'static mut Buffer,
+    history: [[ScreenChar; BUFFER_WIDTH]; HISTORY_LINES],
+    history_base: usize,
+    history_position: usize,
+    slow_print_counter: usize,
+    slow_print_tick: usize
 }
 
 impl Writer {
@@ -78,10 +91,56 @@ impl Writer {
             is_blink: true,
             blink_frequency: NonZero::new(blink_frequency).unwrap_or(NonZero::new(1).unwrap()),
             buffer,
+            history: [[ScreenChar::EMPTY; BUFFER_WIDTH]; HISTORY_LINES],
+            history_base: 0,
+            history_position: 0,
+            slow_print_counter: 0,
+            slow_print_tick: 0
         }
     }
 
-    pub fn w_blink(&mut self) {
+    fn scroll_down(&mut self, to_end: bool) {
+        if self.history_position == 0 {
+            return;
+        }
+        self.history_position -= 1;
+        let top_line: [ScreenChar; BUFFER_WIDTH] = array::from_fn(|x| self.buffer.chars[0][x].read());
+        self.shift_up_no_clear();
+        for x in 0..BUFFER_WIDTH {
+            self.buffer.chars[BUFFER_HEIGHT-1][x].write(self.history[(self.history_base + self.history_position) % HISTORY_LINES][x]);
+        }
+        if to_end {
+            for (x, c) in b">>END OF HISTORY<<".iter().enumerate() {
+                self.buffer.chars[0][x].write(ScreenChar { ascii_character: *c, color_code: ColorCode::new(Red, Yellow) });
+            }
+        }
+        self.history[(self.history_base + self.history_position) % HISTORY_LINES] = top_line;
+
+    }
+
+    fn scroll_up(&mut self) {
+        if self.history_position >= HISTORY_LINES - 1 {
+            return;
+        }
+        self.remove_blink();
+        let bottom_line: [ScreenChar; BUFFER_WIDTH] = array::from_fn(|x| self.buffer.chars[BUFFER_HEIGHT - 1][x].read());
+        self.shift_down_no_clear();
+        for x in 0..BUFFER_WIDTH {
+            self.buffer.chars[0][x].write(self.history[(self.history_base + self.history_position) % HISTORY_LINES][x]);
+        }
+        if self.history_position == HISTORY_LINES - 2 {
+            for (x, c) in b">>END OF HISTORY<<".iter().enumerate() {
+                self.buffer.chars[0][x].write(ScreenChar { ascii_character: *c, color_code: ColorCode::new(Red, Yellow) });
+            }
+        }
+        self.history[(self.history_base + self.history_position) % HISTORY_LINES] = bottom_line;
+        self.history_position += 1;
+    }
+
+    fn w_blink(&mut self) {
+        if self.history_position != 0 {
+            return;
+        }
         self.blink_counter = self.blink_counter.wrapping_add(1);
         if self.blink_counter >= self.blink_frequency.get() - 1 {
             self.blink_counter = 0;
@@ -98,14 +157,14 @@ impl Writer {
         }
     }
 
-    pub fn remove_blink(&mut self) {
+    fn remove_blink(&mut self) {
         let column_position = min(self.column_position, BUFFER_WIDTH - 1);
         let mut current = self.buffer.chars[BUFFER_HEIGHT - 1][column_position].read();
         current.color_code = self.color_code;
         self.buffer.chars[BUFFER_HEIGHT - 1][column_position].write(current);
     }
 
-    pub fn write_byte(&mut self, byte: u8) {
+    fn write_byte(&mut self, byte: u8) {
         match byte {
             b'\n' => self.new_line(),
             byte => {
@@ -113,20 +172,27 @@ impl Writer {
                     self.new_line();
                 }
 
-                let row = BUFFER_HEIGHT - 1;
                 let col = self.column_position;
-
-                let color_code = self.color_code;
-                self.buffer.chars[row][col].write(ScreenChar {
+                let c = ScreenChar {
                     ascii_character: byte,
-                    color_code,
-                });
+                    color_code: self.color_code,
+                };
+
+                if self.history_position == 0 {
+                    let row = BUFFER_HEIGHT - 1;
+
+                    self.buffer.chars[row][col].write(c);
+                }
+                else {
+                    self.history[self.history_base][self.column_position] = c;
+                }
+
                 self.column_position += 1;
             }
         }
     }
 
-    pub fn write_string(&mut self, s: &str) {
+    fn write_string(&mut self, s: &str) {
         for byte in s.bytes() {
             match byte {
                 // printable ASCII byte or newline
@@ -137,16 +203,52 @@ impl Writer {
         }
     }
 
-    fn new_line(&mut self) {
-        self.remove_blink();
+    fn shift_up_no_clear(&mut self) {
         for row in 1..BUFFER_HEIGHT {
             for col in 0..BUFFER_WIDTH {
                 let character = self.buffer.chars[row][col].read();
                 self.buffer.chars[row - 1][col].write(character);
             }
         }
-        self.clear_row(BUFFER_HEIGHT - 1);
+    }
+
+    fn shift_down_no_clear(&mut self) {
+        for row in (0..BUFFER_HEIGHT-1).rev() {
+            for col in 0..BUFFER_WIDTH {
+                let character = self.buffer.chars[row][col].read();
+                self.buffer.chars[row + 1][col].write(character);
+            }
+        }
+    }
+
+    fn new_line(&mut self) {
+        self.remove_blink();
+        if self.history_position == 0 {
+            let top_line: [ScreenChar; BUFFER_WIDTH] = array::from_fn(|x| self.buffer.chars[0][x].read());
+            self.shift_up_no_clear();
+            self.history_base = if self.history_base == 0 {
+                HISTORY_LINES - 1
+            } else { self.history_base - 1 };
+            self.history[self.history_base] = top_line;
+            self.clear_row(BUFFER_HEIGHT - 1);
+        }
+        else {
+            if self.history_position == HISTORY_LINES {
+                self.scroll_down(true);
+            }
+
+            self.history_position += 1;
+
+
+            self.history_base = if self.history_base == 0 {
+                HISTORY_LINES - 1
+            } else { self.history_base - 1 };
+            self.history[self.history_base] = [ScreenChar::EMPTY; BUFFER_WIDTH];
+        }
+
         self.column_position = 0;
+        self.blink_counter = self.blink_frequency.get();
+        self.w_blink();
     }
 
     fn clear_row(&mut self, row: usize) {
@@ -173,10 +275,30 @@ pub fn blink() {
     WRITER.lock().w_blink();
 }
 
+pub fn scroll_up() {
+    WRITER.lock().scroll_up();
+}
+
+pub fn scroll_down() {
+    WRITER.lock().scroll_down(false)
+}
+
 impl fmt::Write for Writer {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         self.write_string(s);
         Ok(())
+    }
+}
+
+impl Writer {
+    pub fn slow_print(&mut self) {
+        if self.slow_print_tick > 10 {
+            self.slow_print_tick = 0;
+            let c = self.slow_print_counter;
+            self.write_fmt(format_args!("[C|{}]\n", c)).unwrap();
+            self.slow_print_counter += 1;
+        }
+        self.slow_print_tick += 1;
     }
 }
 

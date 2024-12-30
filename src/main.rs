@@ -7,8 +7,11 @@ extern crate alloc;
 
 mod sudoku_test;
 
+use alloc::boxed::Box;
+use alloc::collections::LinkedList;
 use alloc::rc::Rc;
 use alloc::vec;
+use alloc::vec::Vec;
 use crate::sudoku_test::solution::Solution;
 use crate::sudoku_test::solver::solve_backtracking;
 use bootloader::{entry_point, BootInfo};
@@ -16,9 +19,10 @@ use core::hint::black_box;
 use core::panic::PanicInfo;
 use x86_64::structures::paging::Page;
 use slate::memory::{translate_addr, BootInfoFrameAllocator};
-use slate::other::arbitrary_delay;
-use slate::{allocator, exit_qemu, hlt_loop, memory, println, QemuExitCode};
+use slate::other::{arbitrary_delay, arbitrary_short_delay};
+use slate::{allocator, exit_qemu, hlt_loop, memory, print, println, QemuExitCode};
 use x86_64::VirtAddr;
+use slate::lipsum::LipsumIterator;
 
 entry_point!(kernel_main);
 
@@ -36,36 +40,16 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     #[cfg(test)]
     test_main();
 
-    // main();
+    main();
 
     hlt_loop();
 }
 
 fn main() {
-    println!("Hello World{}", "!");
-
-    println!("Loading sudoku");
-
-    let problem = Solution::load_string(include_str!("sudoku.txt"));
-
-    println!("Loaded");
-    println!("{}", problem);
-
-    println!("Solving");
-    let solution = solve_backtracking(problem.clone());
-    if let Some(solution) = solution {
-        println!("{}", solution);
-    } else {
-        println!("No solution found");
+    for word in LipsumIterator::new() {
+        print!("{word} ");
+        arbitrary_short_delay();
     }
-
-    println!("Solving 1000");
-    for _ in 0..1000 {
-        let solution = solve_backtracking(problem.clone());
-        black_box(solution);
-    }
-
-    println!("Done");
 }
 
 /// This function is called on panic.
