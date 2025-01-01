@@ -27,9 +27,9 @@ impl BumpAllocator {
     }
 }
 
+use crate::allocator::{align_up, Locked};
 use alloc::alloc::{GlobalAlloc, Layout};
 use core::ptr;
-use crate::allocator::{align_up, Locked};
 
 unsafe impl GlobalAlloc for Locked<BumpAllocator> {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {

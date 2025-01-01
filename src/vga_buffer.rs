@@ -1,12 +1,12 @@
+use crate::vga_buffer::Color::{Black, Red, Yellow};
 use core::cmp::{max, min};
-use core::{array, fmt};
 use core::fmt::Write;
 use core::num::NonZero;
+use core::{array, fmt};
 use lazy_static::lazy_static;
 use spin::Mutex;
 use volatile::Volatile;
 use x86_64::instructions::interrupts;
-use crate::vga_buffer::Color::{Black, Red, Yellow};
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -48,7 +48,10 @@ struct ScreenChar {
 }
 
 impl ScreenChar {
-    pub const EMPTY: ScreenChar = ScreenChar { ascii_character: 0, color_code: ColorCode::new(Black, Black) };
+    pub const EMPTY: ScreenChar = ScreenChar {
+        ascii_character: 0,
+        color_code: ColorCode::new(Black, Black),
+    };
 }
 
 const BUFFER_HEIGHT: usize = 25;
@@ -73,7 +76,7 @@ pub struct Writer {
     history_base: usize,
     history_position: usize,
     slow_print_counter: usize,
-    slow_print_tick: usize
+    slow_print_tick: usize,
 }
 
 impl Writer {
@@ -95,7 +98,7 @@ impl Writer {
             history_base: 0,
             history_position: 0,
             slow_print_counter: 0,
-            slow_print_tick: 0
+            slow_print_tick: 0,
         }
     }
 
@@ -104,18 +107,23 @@ impl Writer {
             return;
         }
         self.history_position -= 1;
-        let top_line: [ScreenChar; BUFFER_WIDTH] = array::from_fn(|x| self.buffer.chars[0][x].read());
+        let top_line: [ScreenChar; BUFFER_WIDTH] =
+            array::from_fn(|x| self.buffer.chars[0][x].read());
         self.shift_up_no_clear();
         for x in 0..BUFFER_WIDTH {
-            self.buffer.chars[BUFFER_HEIGHT-1][x].write(self.history[(self.history_base + self.history_position) % HISTORY_LINES][x]);
+            self.buffer.chars[BUFFER_HEIGHT - 1][x].write(
+                self.history[(self.history_base + self.history_position) % HISTORY_LINES][x],
+            );
         }
         if to_end {
             for (x, c) in b">>END OF HISTORY<<".iter().enumerate() {
-                self.buffer.chars[0][x].write(ScreenChar { ascii_character: *c, color_code: ColorCode::new(Red, Yellow) });
+                self.buffer.chars[0][x].write(ScreenChar {
+                    ascii_character: *c,
+                    color_code: ColorCode::new(Red, Yellow),
+                });
             }
         }
         self.history[(self.history_base + self.history_position) % HISTORY_LINES] = top_line;
-
     }
 
     fn scroll_up(&mut self) {
@@ -123,14 +131,20 @@ impl Writer {
             return;
         }
         self.remove_blink();
-        let bottom_line: [ScreenChar; BUFFER_WIDTH] = array::from_fn(|x| self.buffer.chars[BUFFER_HEIGHT - 1][x].read());
+        let bottom_line: [ScreenChar; BUFFER_WIDTH] =
+            array::from_fn(|x| self.buffer.chars[BUFFER_HEIGHT - 1][x].read());
         self.shift_down_no_clear();
         for x in 0..BUFFER_WIDTH {
-            self.buffer.chars[0][x].write(self.history[(self.history_base + self.history_position) % HISTORY_LINES][x]);
+            self.buffer.chars[0][x].write(
+                self.history[(self.history_base + self.history_position) % HISTORY_LINES][x],
+            );
         }
         if self.history_position == HISTORY_LINES - 2 {
             for (x, c) in b">>END OF HISTORY<<".iter().enumerate() {
-                self.buffer.chars[0][x].write(ScreenChar { ascii_character: *c, color_code: ColorCode::new(Red, Yellow) });
+                self.buffer.chars[0][x].write(ScreenChar {
+                    ascii_character: *c,
+                    color_code: ColorCode::new(Red, Yellow),
+                });
             }
         }
         self.history[(self.history_base + self.history_position) % HISTORY_LINES] = bottom_line;
@@ -182,8 +196,7 @@ impl Writer {
                     let row = BUFFER_HEIGHT - 1;
 
                     self.buffer.chars[row][col].write(c);
-                }
-                else {
+                } else {
                     self.history[self.history_base][self.column_position] = c;
                 }
 
@@ -213,7 +226,7 @@ impl Writer {
     }
 
     fn shift_down_no_clear(&mut self) {
-        for row in (0..BUFFER_HEIGHT-1).rev() {
+        for row in (0..BUFFER_HEIGHT - 1).rev() {
             for col in 0..BUFFER_WIDTH {
                 let character = self.buffer.chars[row][col].read();
                 self.buffer.chars[row + 1][col].write(character);
@@ -224,25 +237,28 @@ impl Writer {
     fn new_line(&mut self) {
         self.remove_blink();
         if self.history_position == 0 {
-            let top_line: [ScreenChar; BUFFER_WIDTH] = array::from_fn(|x| self.buffer.chars[0][x].read());
+            let top_line: [ScreenChar; BUFFER_WIDTH] =
+                array::from_fn(|x| self.buffer.chars[0][x].read());
             self.shift_up_no_clear();
             self.history_base = if self.history_base == 0 {
                 HISTORY_LINES - 1
-            } else { self.history_base - 1 };
+            } else {
+                self.history_base - 1
+            };
             self.history[self.history_base] = top_line;
             self.clear_row(BUFFER_HEIGHT - 1);
-        }
-        else {
+        } else {
             if self.history_position == HISTORY_LINES {
                 self.scroll_down(true);
             }
 
             self.history_position += 1;
 
-
             self.history_base = if self.history_base == 0 {
                 HISTORY_LINES - 1
-            } else { self.history_base - 1 };
+            } else {
+                self.history_base - 1
+            };
             self.history[self.history_base] = [ScreenChar::EMPTY; BUFFER_WIDTH];
         }
 

@@ -1,7 +1,7 @@
-use core::alloc::{GlobalAlloc, Layout};
-use core::{mem, ptr};
-use core::ptr::NonNull;
 use crate::allocator::Locked;
+use core::alloc::{GlobalAlloc, Layout};
+use core::ptr::NonNull;
+use core::{mem, ptr};
 
 struct ListNode {
     next: Option<&'static mut ListNode>,
@@ -65,8 +65,7 @@ unsafe impl GlobalAlloc for Locked<FixedSizeBlockAllocator> {
                         let block_size = BLOCK_SIZES[index];
                         // only works if all block sizes are a power of 2
                         let block_align = block_size;
-                        let layout = Layout::from_size_align(block_size, block_align)
-                            .unwrap();
+                        let layout = Layout::from_size_align(block_size, block_align).unwrap();
                         allocator.fallback_alloc(layout)
                     }
                 }
