@@ -20,16 +20,18 @@ use core::panic::PanicInfo;
 use slate::lipsum::LipsumIterator;
 use slate::memory::{translate_addr, BootInfoFrameAllocator};
 use slate::other::{arbitrary_delay, arbitrary_short_delay};
-use slate::{allocator, exit_qemu, hlt_loop, memory, print, println, QemuExitCode};
-use x86_64::structures::paging::Page;
-use x86_64::VirtAddr;
-use slate::task::{keyboard, Task};
 use slate::task::executor::Executor;
 use slate::task::simple_executor::SimpleExecutor;
+use slate::task::{keyboard, Task};
+use slate::{allocator, exit_qemu, hlt_loop, memory, print, println, serial_println, QemuExitCode};
+use x86_64::structures::paging::Page;
+use x86_64::VirtAddr;
 
 entry_point!(kernel_main);
 
 fn kernel_main(boot_info: &'static BootInfo) -> ! {
+    serial_println!("Serial hello, world!");
+
     slate::init();
 
     let phys_mem_offset = VirtAddr::new(boot_info.physical_memory_offset);
@@ -54,7 +56,6 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
 async fn main() {
     for word in LipsumIterator::new() {
         print!("{word} ");
-
     }
 }
 

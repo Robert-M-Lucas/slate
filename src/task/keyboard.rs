@@ -82,7 +82,7 @@ pub async fn print_keypresses() {
                             print!("Exiting Qemu");
                             exit_qemu(QemuExitCode::Success)
                         }
-                    },
+                    }
                 }
             }
         }
