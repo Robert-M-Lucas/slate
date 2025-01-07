@@ -5,26 +5,13 @@
 #![reexport_test_harness_main = "test_main"]
 extern crate alloc;
 
-mod sudoku_test;
-
-use crate::sudoku_test::solution::Solution;
-use crate::sudoku_test::solver::solve_backtracking;
-use alloc::boxed::Box;
-use alloc::collections::LinkedList;
-use alloc::rc::Rc;
-use alloc::vec;
-use alloc::vec::Vec;
 use bootloader::{entry_point, BootInfo};
-use core::hint::black_box;
 use core::panic::PanicInfo;
 use slate::lipsum::LipsumIterator;
-use slate::memory::{translate_addr, BootInfoFrameAllocator};
-use slate::other::{arbitrary_delay, arbitrary_short_delay};
+use slate::memory::BootInfoFrameAllocator;
 use slate::task::executor::Executor;
-use slate::task::simple_executor::SimpleExecutor;
 use slate::task::{keyboard, Task};
-use slate::{allocator, exit_qemu, hlt_loop, memory, print, println, serial_println, QemuExitCode};
-use x86_64::structures::paging::Page;
+use slate::{allocator, hlt_loop, memory, print, println, serial_println};
 use x86_64::VirtAddr;
 
 entry_point!(kernel_main);
