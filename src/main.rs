@@ -13,6 +13,7 @@ use slate::task::executor::Executor;
 use slate::task::{keyboard, Task};
 use slate::{allocator, hlt_loop, memory, print, println, serial_println};
 use x86_64::VirtAddr;
+use slate::other::arbitrary_delay;
 
 entry_point!(kernel_main);
 
@@ -33,6 +34,7 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
 
     let mut executor = Executor::new();
     executor.spawn(Task::new(keyboard::print_keypresses())); // new
+    // executor.spawn(Task::new(main()));
     executor.run();
 
     println!("After");
@@ -43,6 +45,7 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
 async fn main() {
     for word in LipsumIterator::new() {
         print!("{word} ");
+        arbitrary_delay();
     }
 }
 
